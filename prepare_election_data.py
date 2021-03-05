@@ -13,9 +13,9 @@ def format_candidates(ecode, electorate):
     filtered_data = candidates[candidates.ecode == ecode]
     ids, party_list = [], []    
     for indice in filtered_data.index:
-        id = str(filtered_data.loc[indice, "pcode"]) + "-" + str(filtered_data.loc[indice, "ccode"])
+        id = str(filtered_data.at[indice, "pcode"]) + "-" + str(filtered_data.at[indice, "ccode"])
         ids.append(id)
-        party = active_parties.loc[filtered_data.loc[indice, "pcode"], "pabbrev"]
+        party = active_parties.at[filtered_data.at[indice, "pcode"], "pabbrev"]
         party_list.append(party)
     filtered_data["id"] = ids
     filtered_data["party"] = party_list
@@ -34,7 +34,7 @@ def format_ballots(ecode, electorate):
     interval = 1
     elapsed = interval
     for i, indice in enumerate(filtered_data.index):
-        id = str(filtered_data.loc[indice, "pcode"]) + "-" + str(filtered_data.loc[indice, "ccode"])
+        id = str(filtered_data.at[indice, "pcode"]) + "-" + str(filtered_data.at[indice, "ccode"])
         ids.append(id)
         if (time.time() - elapsed) > start:
             print(f"formatting ballots for {electorate} ... {(i + 1) / len(filtered_data):.1%}", end="\r")
@@ -53,10 +53,10 @@ def create_votes(ecode, electorate):
         data = active_ballots[active_ballots.pindex == vote].sort_values("pref")
         votes = []
         for j in data.index:
-            votes.append(data.loc[j, "id"])
-        filtered_data.loc[vote, "votes"] = votes
-        filtered_data.loc[vote, "pref"] = 0
-        filtered_data.loc[vote, "value"] = 1
+            votes.append(data.at[j, "id"])
+        filtered_data.at[vote, "votes"] = votes
+        filtered_data.at[vote, "pref"] = 0
+        filtered_data.at[vote, "value"] = 1
         if (time.time() - start) > elapsed:
             print(f"creating vote files for {electorate} ... {(i + 1) / len(filtered_data):.1%}", end="\r")
             elapsed = elapsed + interval
