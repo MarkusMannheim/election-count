@@ -19,8 +19,8 @@ def format_candidates(ecode, electorate):
         party_list.append(party)
     filtered_data["id"] = ids
     filtered_data["party"] = party_list
-    filtered_data["primary"] = 0
-    filtered_data["votes"] = 0
+    filtered_data["primary"] = 0.0
+    filtered_data["votes"] = 0.0
     filtered_data.set_index("id", inplace=True)
     filtered_data["cname"] = filtered_data["cname"].apply(lambda x: x.split(", ")[1] + " " + x.split(", ")[0])
     print(f"formatting candidate data for {electorate} ... complete")
@@ -56,7 +56,7 @@ def create_votes(ecode, electorate):
             votes.append(data.at[j, "id"])
         filtered_data.at[vote, "votes"] = votes
         filtered_data.at[vote, "pref"] = 0
-        filtered_data.at[vote, "value"] = 1
+        filtered_data.at[vote, "value"] = 1.0
         if (time.time() - start) > elapsed:
             print(f"creating vote files for {electorate} ... {(i + 1) / len(filtered_data):.1%}", end="\r")
             elapsed = elapsed + interval
