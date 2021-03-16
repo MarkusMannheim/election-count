@@ -12,7 +12,7 @@ def get_electorate():
             for i, electorate in enumerate(electorates.electorate):
                 print(f"{i + 1}. {electorate}")
             print("6. quit program")
-            text = input("Enter a number from 1 to 6:")            
+            text = input("Enter a number from 1 to 6: ")
             text = int(text)
             if (text > 0) and (text < 7):
                 valid_response = True
@@ -22,6 +22,21 @@ def get_electorate():
         except:
             print("That's not a valid choice.")
 
+def get_sample_size():
+    ''' select valid sample size (0 > sample_size ≥ 1) '''
+    valid_response = False
+    while not valid_response:
+        try:
+            text = input("How large is the sample (0 to 1): ")
+            text = float(text)
+            if (text > 0) and (text <= 1):
+                valid_response = True
+                return text
+            else:
+                print("That's not a valid choice.")
+        except:
+            print("That's not a valid choice.")            
+
 def eliminate_candidate():
     ''' remove eliminated candidate and return ID '''
     global eliminated        
@@ -29,7 +44,8 @@ def eliminate_candidate():
     name = candidates.at[candidate, "cname"]
     party = candidates.at[candidate, "party"]
     primary = candidates.at[candidate, "primary"]
-    eliminated.loc[candidate] = [name, party, primary]
+    votes = candidates.at[candidate, "votes"]
+    eliminated.loc[candidate] = [name, party, primary, votes]
     print(f"{name} is eliminated!")
     return candidate
 
@@ -40,16 +56,17 @@ def elect_candidate(candidate):
     print(f"{name} is elected!")
     party = candidates.at[candidate, "party"]
     primary = candidates.at[candidate, "primary"]
-    elected.loc[candidate] = [name, party, primary]
+    votes = candidates.at[candidate, "votes"]
+    elected.loc[candidate] = [name, party, primary, votes]
     # calculate fractional vote    
     fraction = (candidates.at[candidate, "votes"] - quota) / candidates.at[candidate, "votes"]
     print(f"{name} had {candidates.at[candidate, 'votes']:,.1f} votes. Fractional transfer value is {round(fraction, 6)}")
     return fraction
 
-def distribute_votes(candidate, elected):
+def distribute_votes(candidate, victory):
     ''' redistributes votes/surplus votes from eliminated/elected candidates '''
     global candidates, sample, exhausted
-    print(f"redistributing {candidates.at[candidate, 'cname']}'s {'surplus ' if elected else ''}votes ...", end="\r")
+    print(f"redistributing {candidates.at[candidate, 'cname']}'s {'surplus ' if victory else ''}votes ...", end="\r")
     start = time.time()
     interval = 1
     elapsed = interval
@@ -57,9 +74,9 @@ def distribute_votes(candidate, elected):
     for i, indice in enumerate(sample.index):
         # is vote for this candidate?
         if sample.at[indice, "votes"][sample.at[indice, "pref"]] == candidate:
-            if elected:
+            if victory:
                 sample.at[indice, "value"] = round(sample.at[indice, "value"] * fraction, 6)
-            # remove vote from eliminate/elected candidate
+            # remove vote from eliminated/elected candidate
             candidates.at[candidate, "votes"] = candidates.at[candidate, "votes"] - sample.at[indice, "value"]
             # is there a next preference?
             preference_resolved = False
@@ -80,24 +97,32 @@ def distribute_votes(candidate, elected):
                     sample.drop(index=indice, inplace=True)
                     preference_resolved = True
         if (time.time() - elapsed) > start:
-            print(f"redistributing {candidates.at[candidate, 'cname']}'s {'surplus ' if elected else ''}votes ... {(i + 1) / sample_length:.1%}", end="\r")
+            print(f"redistributing {candidates.at[candidate, 'cname']}'s {'surplus ' if victory else ''}votes ... {(i + 1) / sample_length:.1%}", end="\r")
             elapsed = elapsed + interval
-    print(f"redistributing {candidates.at[candidate, 'cname']}'s {'surplus ' if elected else ''}votes ... complete")
+    if victory:
+        elected.at[candidate, "votes"] = candidates.at[candidate, "votes"]
+    else:
+        eliminated.at[candidate, "votes"] = candidates.at[candidate, "votes"]
+    print(f"redistributing {candidates.at[candidate, 'cname']}'s {'surplus ' if victory else ''}votes ... complete")
 
 def record_count(event):
     ''' records current vote tally and saves to file '''
     global results_phase, results
     results_phase = results_phase + 1
     results.at[results_phase, "event"] = event
-    results.at[results_phase, "exhausted"] = exhausted
+    results.at[results_phase, "exhausted"] = exhausted    
     for candidate in elected.index:
-        results.at[results_phase, elected.at[candidate, "cname"]] = "elected"    
+        results.at[results_phase, elected.at[candidate, "cname"]] = elected.at[candidate, "votes"]
     for candidate in eliminated.index:
-        results.at[results_phase, eliminated.at[candidate, "cname"]] = "eliminated"
+        results.at[results_phase, eliminated.at[candidate, "cname"]] = eliminated.at[candidate, "votes"]
     for candidate in candidates.index:
         results.at[results_phase, candidates.at[candidate, "cname"]] = candidates.at[candidate, "votes"]
+    results.at[results_phase, "total votes"] = results.loc[results_phase][2:].sum()
     results.to_csv(f"./data/results_{electorates.at[electorate, 'electorate']}.csv")
 
+def final_elected():    
+    pass
+    
 # BEGIN PROGRAM
 
 print("2020 ACT ELECTION SIMULATOR")
@@ -109,11 +134,13 @@ electorates = pd.read_csv("./data/Electorates.txt", index_col="ecode")
 # begin cycle
 while True:
     electorate = get_electorate()
-    
+   
     # user wants to quit
     if electorate == 6:
         break
-    
+
+    sample_size = get_sample_size()
+        
     # load electorate data
     print(f"\nloading {electorates.at[electorate, 'electorate']} data ...", end="\r")
     candidates = pd.read_csv(f"./data/candidates_{electorates.at[electorate, 'electorate']}.csv", index_col="id")
@@ -124,16 +151,15 @@ while True:
     
     # create sample data to speed up calculation
     print("sampling data for analysis ...", end="\r")
-    sample_size = 1
     sample = votes.sample(frac=sample_size)
     print("sampling data for analysis ... complete")
  
     # prepare datasets to contain elected and eliminated candidates
     print("preparing results containers ...", end="\r")
-    elected = pd.DataFrame(columns=["cname", "party", "primary"])
-    eliminated = pd.DataFrame(columns=["cname", "party", "primary"])
+    elected = pd.DataFrame(columns=["cname", "party", "primary", "votes"])
+    eliminated = pd.DataFrame(columns=["cname", "party", "primary", "votes"])
     exhausted = 0.0
-    results = pd.DataFrame(columns=list(candidates.cname) + ["exhausted", "event"])
+    results = pd.DataFrame(columns=["event", "total votes", "exhausted"] + list(candidates.cname))
     results.index.name = "phase"
     print("preparing results containers ... complete")
 
@@ -159,6 +185,7 @@ while True:
     count_no = 1
     results_phase = 0
     record_count("primary votes")
+    print()
     while len(elected) < 5:
         print(f"\nCOUNT No. {count_no}\n")
         # check if candidates elected
@@ -166,9 +193,15 @@ while True:
         if len(reached_quota) == 0:
             print("no candidates elected")
             # check is this the last candidate?
-#             if (len(elected) == 4) and (len(candidates) == 0):                
+            if (len(elected) == 4) and (len(candidates) == 1):
+                print("only one candidate is left ...")
+                candidate = candidates.index[0]
+                elect_candidate(candidate)                
+                record_count(f"{elected.at[candidate, 'cname']} elected by default")
+                candidates.drop(index=candidate, inplace=True)
+                break
             eliminated_candidate = eliminate_candidate()
-            distribute_votes(eliminated_candidate, False)
+            distribute_votes(eliminated_candidate, False)            
             record_count(f"{eliminated.at[eliminated_candidate, 'cname']} eliminated")
             candidates.drop(index=eliminated_candidate, inplace=True)
         else:
@@ -176,7 +209,8 @@ while True:
             while len(elected) < 5:
                 candidate = reached_quota.index[i]
                 fraction = elect_candidate(candidate)
-                distribute_votes(candidate, True)
+                if (len(elected) < 5):
+                    distribute_votes(candidate, True)                
                 record_count(f"{elected.at[candidate, 'cname']} elected")
                 candidates.drop(index=candidate, inplace=True)
                 i = i + 1
@@ -184,10 +218,9 @@ while True:
                     break
         candidates.sort_values("votes", ascending=False, inplace=True)
         count_no = count_no + 1
-
+    # simulation results
     print()
-    print(pd.concat([elected, candidates, eliminated.iloc[::-1]]))
-    print(f"exhausted votes: {exhausted:,.1f}")
-
+    print(elected[["cname", "party", "primary"]])
+        
 # exit program
 print("\nEnjoy your day.")
