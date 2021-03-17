@@ -1,6 +1,0 @@
-"ecode","electorate"
-1,"Brindabella"
-2,"Ginninderra"
-3,"Kurrajong"
-4,"Murrumbidgee"
-5,"Yerrabi"
