@@ -28,29 +28,33 @@ def format_candidates(ecode, electorate):
 
 def format_ballots(ecode, electorate):
     print(f"formatting ballots for {electorate} ...", end="\r")
-    filtered_data = pd.read_csv(f"./data/{electorate}Total.txt", usecols=["pindex", "pref", "pcode", "ccode"])
+    filtered_data = pd.read_csv(f"./data/{electorate}Total.txt", usecols=["batch", "pindex", "pref", "pcode", "ccode"])
     ids = []
+    identifiers = []
     start = time.time()
     interval = 1
     elapsed = interval
     for i, indice in enumerate(filtered_data.index):
-        id = str(filtered_data.at[indice, "pcode"]) + "-" + str(filtered_data.at[indice, "ccode"])
+        id = str(filtered_data.at[indice, "pcode"]) + "-" + str(filtered_data.at[indice, "ccode"])        
         ids.append(id)
+        identifier = str(filtered_data.at[indice, "pindex"]) + "-" + str(polling_places.at[filtered_data.at[indice, "batch"], "PPN"])
+        identifiers.append(identifier)
         if (time.time() - elapsed) > start:
             print(f"formatting ballots for {electorate} ... {(i + 1) / len(filtered_data):.1%}", end="\r")
             elapsed = elapsed + interval
-    filtered_data["id"] = ids    
+    filtered_data["id"] = ids
+    filtered_data["identifier"] = identifiers
     print(f"formatting ballots for {electorate} ... complete")
     return filtered_data
 
 def create_votes(ecode, electorate):
     print(f"creating vote files for {electorate} ...", end="\r")
-    filtered_data = pd.DataFrame(index=active_ballots.pindex.unique(), columns=["votes", "pref", "value"])
+    filtered_data = pd.DataFrame(index=active_ballots.identifier.unique(), columns=["votes", "pref", "value"])
     start = time.time()
     interval = 1
     elapsed = interval
     for i, vote in enumerate(filtered_data.index):
-        data = active_ballots[active_ballots.pindex == vote].sort_values("pref")
+        data = active_ballots[active_ballots.identifier == vote].sort_values("pref")
         votes = []
         for j in data.index:
             votes.append(data.at[j, "id"])
@@ -73,7 +77,8 @@ print("\nreading in election parameters ...", end="\r")
 electorates = pd.read_csv("./data/Electorates.txt", index_col="ecode")
 parties = pd.read_csv("./data/Groups.txt")
 candidates = pd.read_csv("./data/Candidates.txt")
-ballots = pd.DataFrame(columns=["pindex", "pref", "pcode", "ccode", "ecode"])
+ballots = pd.DataFrame(columns=["identifier", "pref", "pcode", "ccode", "ecode"])
+polling_places = pd.read_csv("./data/PollingPlaceBatchNumbers.txt", usecols=["batch", "PPN"], index_col="batch")
 print("reading in election parameters ... complete")
 
 # begin electorate cycle
@@ -87,5 +92,5 @@ for ecode, edata in electorates.iterrows():
     print(f"saving data for {edata.electorate} ...", end="\r")
     active_candidates.to_csv(f"./data/candidates_{edata.electorate}.csv", index_label="id")
     active_parties.to_csv(f"./data/parties_{edata.electorate}.csv", index_label="id")
-    active_votes.to_csv(f"./data/votes_{edata.electorate}.csv", index_label="id")
+    active_votes.to_csv(f"./data/votes_{edata.electorate}.csv", index_label="identifier")
     print(f"saving data for {edata.electorate} ... complete")
